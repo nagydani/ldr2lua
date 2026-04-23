@@ -261,15 +261,11 @@ setmetatable(_G, {
   end
 })
 
--- Load transpiled chunks. Using loadstring+readfile
-
--- instead of loadfile as a temporary workaround:
-
--- Compy's loadfile does not resolve relative paths.
-
-dat_4865as01 = loadstring(readfile("dat_4865as01.lua"))
-dat_box5 = loadstring(readfile("dat_box5.lua"))
-dat_4865a = loadstring(readfile("dat_4865a.lua"))
+-- Load transpiled chunks.
+ 
+dat_4865as01 = loadfile("dat_4865as01.lua")
+dat_box5 = loadfile("dat_box5.lua")
+dat_4865a = loadfile("dat_4865a.lua")
 
 gfx.setColor(0, 0, 0)
 dat_4865a()

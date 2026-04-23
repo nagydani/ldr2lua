@@ -49,11 +49,11 @@ end
 
 -- 3d vector constructor from numbers (safe for 2d)
 function Vec.d3(x, y, z)
-  return Vec:new {
+  return Vec:new({
     nonzero(x),
     nonzero(y),
     nonzero(z)
-  }
+  })
 end
 
 -- numeric coordinate
@@ -150,11 +150,11 @@ function Mat.rot(a, b, c, d)
   local a2, b2, c2, d2 = a * a, b * b, c * c, d * d
   local bc, ad, bd = b * c, a * d, b * d
   local cd, ab, ac = c * d, a * b, a * c
-  return Mat:new {
-    Vec.d3(a2 + b2 - c2 - d2, 2 * (bc - ad), 2 * (bd + ac)),
-    Vec.d3(2 * (bc + ad), a2 - b2 + c2 - d2, 2 * (cd - ab)),
-    Vec.d3(2 * (bd - ac), 2 * (cd + ab), a2 - b2 - c2 + d2)
-  }
+  return Mat:new({
+    Vec.d3((a2 + b2 - c2) - d2, 2 * (bc - ad), 2 * (bd + ac)),
+    Vec.d3(2 * (bc + ad), (a2 - b2) + c2 - d2, 2 * (cd - ab)),
+    Vec.d3(2 * (bd - ac), 2 * (cd + ab), ((a2 - b2) - c2) + d2)
+  })
 end
 
 -- numeric element

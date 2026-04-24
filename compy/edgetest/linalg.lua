@@ -68,7 +68,7 @@ function Vec:c2()
 end
 
 -- 3d numeric coordinates
-function Vec:c2()
+function Vec:c3()
   local c = Vec.c
   return c(self, 1), c(self, 2), c(self, 3)
 end
@@ -101,6 +101,7 @@ function Vec:dot(b)
   for i, v in pairs(self) do
     r = r + v * b:c(i)
   end
+  return r
 end
 
 -- renormalization
@@ -143,6 +144,7 @@ function Mat.unit(d)
   for i = 1, d do
     m[i] = Vec.axis(i)
   end
+  return m
 end
 
 -- orthonormal 3d matrix constructor from unit quaternion
@@ -178,7 +180,7 @@ end
 -- matrix multiplication
 function Mat:mul(m)
   local r = Mat:new()
-  for i, v in self do
+  for i, v in ipairs(self) do
     r[i] = v:tr(m)
   end
   return r

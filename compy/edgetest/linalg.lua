@@ -277,19 +277,19 @@ end
 function Mat:mul(m)
   return fold(self, function(v)
     return v:tr(m)
-  end
+  end)
 end
 
 -- 3d orthogonal transformation
 function Mat:orthogonal3(i)
   return fold(self, function(v)
     return v:orthogonal3(i)
-  end
+  end)
 end
 
 -- 3d orthogonal inverse transformation
 function Mat:orthogonal3i(i)
   return fold(self, function(v)
     return v:orthogonal3i(i)
-  end
+  end)
 end

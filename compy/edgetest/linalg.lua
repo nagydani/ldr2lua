@@ -167,7 +167,7 @@ local function orthogonal(n, i)
 end
 
 local orthogonal3 = { }
-for i = 1, 47 do
+for i = 0, 47 do
   orthogonal3[i] = orthogonal(3, i)
 end
 
@@ -177,7 +177,9 @@ function Vec:orthogonal3(i)
 end
 
 -- find matching inverse transformations
-local orthogonal3i = { }
+local orthogonal3i = {
+  [0] = 0
+}
 
 local v123 = Vec:new({
   1,

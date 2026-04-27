@@ -1,242 +1,212 @@
--- main.lua for the edgetest project. Loads three LDraw-
--- transpiled parts and draws their edges in four projections:
--- front, side, top, and an isometric wireframe.
+-- main.lua for the edgetest project. Loads the transpiled
+-- pyramid model and renders it in four projections: front,
+-- side, top, and isometric. Geometry is processed once per
+-- projection by re-invoking ldr_pyramid with a different
+-- pluggable project(x, y, z) function each time.
 
--- Pull in the linear algebra library. It defines globals Vec
--- and Mat used by the drawing and transformation code below.
--- TOL is the numeric tolerance used by linalg for treating
--- near-zero values as zero.
+-- Pull in the linear algebra library through require so it
+-- caches and is loaded once. TOL must be set first because
+-- linalg uses it during initialisation.
 
 TOL = 0.0005
 
-dofile("linalg.lua")
+require "linalg"
 
 local gfx = love.graphics
 
--- Quadrant centres on a 1024x600 display. Stored as plain
--- numeric coordinates rather than Vec instances: they are not
--- used in any matrix operation, only as offsets for rendering.
+-- Global transformation: M is the 3x3 rotation/orientation
+-- matrix, T is the 3d translation. A point v in local space
+-- is mapped to global space as M*v + T. ref-style functions
+-- save these into locals, update them for the sub-tree, and
+-- restore on return. There is no matrix stack.
 
-CENTER_TL_X, CENTER_TL_Y = 256, 150
-CENTER_TR_X, CENTER_TR_Y = 768, 150
-CENTER_BL_X, CENTER_BL_Y = 256, 450
-CENTER_BR_X, CENTER_BR_Y = 768, 450
+M = Mat.unit(3)
+T = Vec.d3(0, 0, 0)
 
--- Global scale baked into the root matrix.
-
-SCALE = 2
-
--- Shared empty function used for unimplemented DSL primitives
--- (line, tri, quad, outline, color_outline) and for sub-parts
--- whose transpiled chunks have not been loaded.
+-- Shared no-op used by the _G fallback metatable for any DSL
+-- function that is not implemented in this iteration.
 
 function empty_fn()
+  
 end
 
--- Build a scaled identity matrix: s*I with zero translation.
+-- Apply M and T to a local 3d point, returning the global
+-- point as a Vec.
 
-function make_scaled_identity(s)
+function apply_global(p)
+  local g = p:tr(M)
+  g:acc(T)
+  return g
+end
+
+-- Drawing primitives. They consult the current pluggable
+-- project(x, y, z) function to obtain 2d screen coordinates.
+
+function edge(x1, y1, z1, x2, y2, z2)
+  local g1 = apply_global(Vec.d3(x1, y1, z1))
+  local g2 = apply_global(Vec.d3(x2, y2, z2))
+  local sx1, sy1 = project(g1:c3())
+  local sx2, sy2 = project(g2:c3())
+  gfx.line(sx1, sy1, sx2, sy2)
+end
+
+-- Conditional line: draw the segment p1-p2 only if the
+-- projections of p3 and p4 lie on the same side of the line
+-- through the projections of p1 and p2. Sign agreement of
+-- two cross products gives the answer.
+
+function same_side(ax, ay, bx, by, cx, cy, dx, dy)
+  local vx, vy = bx - ax, by - ay
+  local s1 = vx * (cy - ay) - vy * (cx - ax)
+  local s2 = vx * (dy - ay) - vy * (dx - ax)
+  return 0 <= s1 * s2
+end
+
+function outline(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4)
+  local g1 = apply_global(Vec.d3(x1, y1, z1))
+  local g2 = apply_global(Vec.d3(x2, y2, z2))
+  local g3 = apply_global(Vec.d3(x3, y3, z3))
+  local g4 = apply_global(Vec.d3(x4, y4, z4))
+  local sx1, sy1 = project(g1:c3())
+  local sx2, sy2 = project(g2:c3())
+  local sx3, sy3 = project(g3:c3())
+  local sx4, sy4 = project(g4:c3())
+  if same_side(sx1, sy1, sx2, sy2, sx3, sy3, sx4, sy4) then
+    gfx.line(sx1, sy1, sx2, sy2)
+  end
+end
+
+-- Sub-tree invocation. Save M and T into locals, update for
+-- the sub-tree, call sub, and restore on return. This is the
+-- explicit save/restore replacement for the matrix stack.
+
+-- Common save/restore wrapper used by every reference-style
+-- DSL function. The updater builds the new M and T given the
+-- previous ones; this function takes care of save/call/restore.
+
+function with_frame(updater, sub)
+  local oldM = M
+  local oldT = T
+  updater(oldM, oldT)
+  sub()
+  M = oldM
+  T = oldT
+end
+
+-- Compute the new T given the previous M and T plus a local
+-- translation (tx, ty, tz). The local translation is rotated
+-- into global space by the previous M and added to the
+-- previous T.
+
+function step_translation(oldM, oldT, tx, ty, tz)
+  local local_t = Vec.d3(tx, ty, tz)
+  local global_step = local_t:tr(oldM)
+  global_step:acc(oldT)
+  return global_step
+end
+
+-- placeN: identity rotation, only translation changes. M is
+-- left untouched; T is updated.
+
+function placeN(sub, q, x, y, z)
+  with_frame(function(oldM, oldT)
+    T = step_translation(oldM, oldT, x, y, z)
+  end, sub)
+end
+
+-- Apply an orthogonal transformation by index from the
+-- orthogonal_base table. Updates both M and T for the
+-- sub-tree. Shared by the named compass and mirror placements
+-- and by the general place(... i).
+
+function apply_orthogonal(sub, x, y, z, i)
+  with_frame(function(oldM, oldT)
+    local o = Mat.unit(3):orthogonal3(i)
+    M = o:mul(oldM)
+    T = step_translation(oldM, oldT, x, y, z)
+  end, sub)
+end
+
+-- Factory for compass-direction and mirror placements that
+-- correspond to a fixed orthogonal_base index.
+
+function make_orthogonal_place(i)
+  return function(sub, q, x, y, z)
+    apply_orthogonal(sub, x, y, z, i)
+  end
+end
+
+placeS = make_orthogonal_place(5)
+placeW = make_orthogonal_place(17)
+placeE = make_orthogonal_place(20)
+mirrorEW = make_orthogonal_place(1)
+mirrorUD = make_orthogonal_place(2)
+mirrorNS = make_orthogonal_place(4)
+
+-- General orthogonal placement with a runtime-supplied index
+-- from the orthogonal_base table.
+
+function place(sub, q, x, y, z, i)
+  apply_orthogonal(sub, x, y, z, i)
+end
+
+-- Diagonal stretch: scale the local axes by (a, e, i) before
+-- composing into the parent frame.
+
+function stretch(sub, q, x, y, z, a, e, i)
+  with_frame(function(oldM, oldT)
+    local s = Mat:new({
+      Vec.d3(a, 0, 0),
+      Vec.d3(0, e, 0),
+      Vec.d3(0, 0, i)
+    })
+    M = s:mul(oldM)
+    T = step_translation(oldM, oldT, x, y, z)
+  end, sub)
+end
+
+-- Twist: rotation around Y by (cos a, sin c). Build the
+-- rotation matrix from a column-major layout: m[i] is the
+-- image of the i-th basis vector.
+
+function make_twist_mat(a, c)
   return Mat:new({
-    Vec.d3(s, 0, 0),
-    Vec.d3(0, s, 0),
-    Vec.d3(0, 0, s)
+    Vec.d3(a, 0, -c),
+    Vec.d3(0, 1, 0),
+    Vec.d3(c, 0, a)
   })
 end
 
--- Stack of matrices. The bottom is a scaled identity that maps
--- LDU into screen units.
-
-MATRIX_STACK = { make_scaled_identity(SCALE) }
-
-function top_matrix()
-  return MATRIX_STACK[#MATRIX_STACK]
+function twist(sub, q, x, y, z, a, c)
+  with_frame(function(oldM, oldT)
+    M = make_twist_mat(a, c):mul(oldM)
+    T = step_translation(oldM, oldT, x, y, z)
+  end, sub)
 end
 
--- Push a local matrix composed with the current top; pop
--- removes whatever is on top. linalg's Mat:mul composes only
--- the 3x3 rotation part; the affine translation is combined
--- here: new_t = M_outer * t_inner + t_outer.
+-- General reference: arbitrary 3x3 rotation matrix from nine
+-- numbers in row-major LDraw order, transposed to column-
+-- major as linalg expects (m[i] is the image of basis i).
 
--- Extract the 3x3 rotation part of an affine matrix as a new
--- Mat without the m[4] translation slot set.
-
-function rot_part(m)
-  return Mat:new({ m[1], m[2], m[3] })
-end
-
--- Compose translation vectors for an affine product: the inner
--- translation is rotated by the outer matrix, then the outer
--- translation is added.
-
-function compose_t(t_inner, rot_outer, t_outer)
-  local t = Vec:new()
-  if t_inner then
-    t = t_inner:tr(rot_outer)
-  end
-  if t_outer then
-    t:acc(t_outer)
-  end
-  return t
-end
-
-function compose_matrix(inner, outer)
-  local rot_outer = rot_part(outer)
-  local result = rot_part(inner):mul(rot_outer)
-  result[4] = compose_t(inner[4], rot_outer, outer[4])
-  return result
-end
-
-function push_matrix(m)
-  table.insert(MATRIX_STACK, compose_matrix(m, top_matrix()))
-end
-
-function pop_matrix()
-  table.remove(MATRIX_STACK)
-end
-
--- Transform a local point into global coordinates by applying
--- the current top of the matrix stack. linalg's Vec:tr applies
--- only the 3x3 rotation; the translation stored in m[4] must
--- be added explicitly.
-
-function apply_matrix(v)
-  local m = top_matrix()
-  local result = v:tr(m)
-  if m[4] then
-    result:acc(m[4])
-  end
-  return result
-end
-
--- Draw an orthogonal projection: screen (x, y) come from the
--- 3D point's ix and iy components, offset by (cx, cy). Shared
--- by all three axis-aligned projections.
-
-function draw_edge_ortho(p1, p2, cx, cy, ix, iy)
-  local x1 = cx + p1:c(ix)
-  local y1 = cy + p1:c(iy)
-  local x2 = cx + p2:c(ix)
-  local y2 = cy + p2:c(iy)
-  gfx.line(x1, y1, x2, y2)
-end
-
--- Factory for an orthogonal projection drawer with the given
--- centre coordinates and axis indices.
-
-function make_ortho(cx, cy, ix, iy)
-  return function(p1, p2)
-    draw_edge_ortho(p1, p2, cx, cy, ix, iy)
-  end
-end
-
--- Isometric projection: x axis goes right, z axis goes left,
--- both axes also contribute half their length to y. This one
--- is not a simple ortho and has its own explicit formula.
-
-function draw_edge_br(p1, p2)
-  local a1, b1, c1 = p1:c3()
-  local a2, b2, c2 = p2:c3()
-  local x1 = CENTER_BR_X + a1 - c1
-  local y1 = CENTER_BR_Y + b1 + 0.5 * (a1 + c1)
-  local x2 = CENTER_BR_X + a2 - c2
-  local y2 = CENTER_BR_Y + b2 + 0.5 * (a2 + c2)
-  gfx.line(x1, y1, x2, y2)
-end
-
--- Projection drawers keyed by quadrant. Front, side and top
--- are orthogonal and differ only in centre and axis indices;
--- isometric has its own dedicated function.
-
-DRAW_EDGE = {
-  make_ortho(CENTER_TL_X, CENTER_TL_Y, 1, 2),
-  make_ortho(CENTER_TR_X, CENTER_TR_Y, 3, 2),
-  make_ortho(CENTER_BL_X, CENTER_BL_Y, 1, 3),
-  draw_edge_br
-}
-
--- Draw a 3D edge through all configured projections.
-
-function draw_edge_all(p1, p2)
-  local g1 = apply_matrix(p1)
-  local g2 = apply_matrix(p2)
-  for i = 1, #DRAW_EDGE do
-    DRAW_EDGE[i](g1, g2)
-  end
-end
-
--- The only drawing primitive implemented per the task. Other
--- primitives (line, tri, quad, outline, color_outline) resolve
--- via the _G metatable below to empty_fn.
-
-function edge(x1, y1, z1, x2, y2, z2)
-  draw_edge_all(Vec.d3(x1, y1, z1), Vec.d3(x2, y2, z2))
-end
-
--- Invoke a sub-part with a matrix pushed onto the
--- transformation stack; pop after the call returns.
-
-function invoke_sub(sub, m)
-  push_matrix(m)
-  sub()
-  pop_matrix()
-end
-
--- General reference with an arbitrary 3x3 rotation matrix
--- passed as nine numbers in row-major order (per LDraw spec),
--- plus translation. Transposed into column-major form on the
--- way in, because Vec:tr(m) interprets m[i] as the image of
--- the i-th basis vector.
-
-function ref(sub, q, x, y, z, a, b, c, d, e, f, g, h, i)
-  local m = Mat:new({
+function make_ref_mat(a, b, c, d, e, f, g, h, i)
+  return Mat:new({
     Vec.d3(a, d, g),
     Vec.d3(b, e, h),
     Vec.d3(c, f, i)
   })
-  m[4] = Vec.d3(x, y, z)
-  invoke_sub(sub, m)
 end
 
--- Build a rotation around the Y axis from a complex number
--- (c, s) = (cos, sin) paired with a translation vector.
--- Stored in column-major form: m[i] is the image of the i-th
--- basis vector. Rotation by angle θ takes X into (c, 0, -s)
--- and Z into (s, 0, c).
-
-function make_rot_y(tx, ty, tz, c, s)
-  local m = Mat:new({
-    Vec.d3(c, 0, -s),
-    Vec.d3(0, 1, 0),
-    Vec.d3(s, 0, c)
-  })
-  m[4] = Vec.d3(tx, ty, tz)
-  return m
+function ref(sub, q, x, y, z, a, b, c, d, e, f, g, h, i)
+  with_frame(function(oldM, oldT)
+    M = make_ref_mat(a, b, c, d, e, f, g, h, i):mul(oldM)
+    T = step_translation(oldM, oldT, x, y, z)
+  end, sub)
 end
 
--- Factory for compass-direction placement: returns a function
--- that builds a rotation around Y by (cos, sin) and invokes
--- the sub-part under it. The colour q is accepted for
--- uniformity with ref but ignored in this iteration.
-
-function make_place(c, s)
-  return function(sub, q, x, y, z)
-    invoke_sub(sub, make_rot_y(x, y, z, c, s))
-  end
-end
-
-placeN = make_place(1, 0)
-placeE = make_place(0, 1)
-placeS = make_place(-1, 0)
-placeW = make_place(0, -1)
-
--- Twist: rotation around Y by (cos a, sin c).
-
-function twist(sub, q, x, y, z, a, c)
-  invoke_sub(sub, make_rot_y(x, y, z, a, c))
-end
-
--- Install a catch-all metatable on _G so references to unloaded
--- sub-parts and unimplemented primitives resolve to empty_fn.
+-- Install a catch-all metatable on _G so references to DSL
+-- primitives and meta commands that are not implemented in this
+-- iteration (line, tri, quad, color_outline, STEP, CLEAR,
+-- LDRAW_ORG, KEYWORD, etc.) resolve to empty_fn.
 
 setmetatable(_G, {
   __index = function()
@@ -244,11 +214,91 @@ setmetatable(_G, {
   end
 })
 
--- Load transpiled chunks.
+-- Pluggable projection. Each draw-time function must define
+-- this global before invoking the model. The projection takes
+-- a 3d point and returns 2d screen coordinates.
 
-dat_4865as01 = loadfile("dat_4865as01.lua")
-dat_box5 = loadfile("dat_box5.lua")
-dat_4865a = loadfile("dat_4865a.lua")
+-- Quadrant centres on the 1024x600 display.
+
+CENTER_TL_X, CENTER_TL_Y = 256, 150
+CENTER_TR_X, CENTER_TR_Y = 768, 150
+CENTER_BL_X, CENTER_BL_Y = 256, 450
+CENTER_BR_X, CENTER_BR_Y = 768, 450
+
+-- Global scale that maps LDU into screen units.
+
+SCALE = 1
+
+function project_front(x, y, z)
+  return CENTER_TL_X + SCALE * x, CENTER_TL_Y + SCALE * y
+end
+
+function project_side(x, y, z)
+  return CENTER_TR_X + SCALE * z, CENTER_TR_Y + SCALE * y
+end
+
+function project_top(x, y, z)
+  return CENTER_BL_X + SCALE * x, CENTER_BL_Y + SCALE * z
+end
+
+function project_iso(x, y, z)
+  local sx = CENTER_BR_X + SCALE * (x - z)
+  local sy = CENTER_BR_Y + SCALE * (y + 0.5 * (x + z))
+  return sx, sy
+end
+
+PROJECTIONS = {
+  project_front,
+  project_side,
+  project_top,
+  project_iso
+}
+
+-- Reset the global frame to the identity orientation and zero
+-- translation. Called between projection passes.
+
+function reset_frame()
+  M = Mat.unit(3)
+  T = Vec.d3(0, 0, 0)
+end
+
+-- Load all transpiled sub-part chunks. Each dat_*.lua file in
+-- the project directory becomes a global function with the
+-- same name (sans extension). The pyramid model references
+-- them by name through ref / placeN / etc., so they must be
+-- loaded before the model is invoked.
+
+DAT_FILES = {
+  "dat_3001",
+  "dat_3001s01",
+  "dat_3003",
+  "dat_3003s01",
+  "dat_3003s02",
+  "dat_4_4cyli",
+  "dat_4_4disc",
+  "dat_4_4edge",
+  "dat_4_4ring3",
+  "dat_box3u2p",
+  "dat_box5",
+  "dat_stud",
+  "dat_stud4",
+  "dat_stug_2x2"
+}
+
+for i = 1, #DAT_FILES do
+  local name = DAT_FILES[i]
+  _G[name] = loadfile(name .. ".lua")
+end
+
+-- Load the transpiled pyramid model.
+
+ldr_pyramid = loadfile("ldr_pyramid.lua")
 
 gfx.setColor(0, 0, 0)
-dat_4865a()
+
+for i = 1, #PROJECTIONS do
+  reset_frame()
+  project = PROJECTIONS[i]
+  ldr_pyramid()
+end
+

@@ -253,14 +253,6 @@ PROJECTIONS = {
   project_iso
 }
 
--- Reset the global frame to the identity orientation and zero
--- translation. Called between projection passes.
-
-function reset_frame()
-  M = Mat.unit(3)
-  T = Vec.d3(0, 0, 0)
-end
-
 -- Load all transpiled sub-part chunks. Each dat_*.lua file in
 -- the project directory becomes a global function with the
 -- same name (sans extension). The pyramid model references
@@ -296,7 +288,6 @@ ldr_pyramid = loadfile("ldr_pyramid.lua")
 gfx.setColor(0, 0, 0)
 
 for i = 1, #PROJECTIONS do
-  reset_frame()
   project = PROJECTIONS[i]
   ldr_pyramid()
 end

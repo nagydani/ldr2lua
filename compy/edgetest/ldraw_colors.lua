@@ -4567,32 +4567,6 @@ Obsolete_Light_Orange_Brown = {
     0.2,
   },
 }
-Main_Colour = {
-  code = 16,
-  value = {
-    1,
-    1,
-    0.502,
-  },
-  edge = {
-    0.2,
-    0.2,
-    0.2,
-  },
-}
-Edge_Colour = {
-  code = 24,
-  value = {
-    0.498,
-    0.498,
-    0.498,
-  },
-  edge = {
-    0.2,
-    0.2,
-    0.2,
-  },
-}
 Magnet = {
   code = 493,
   value = {

@@ -11,8 +11,3 @@
 compy/*/dat_*.lua
 compy/*/ldr_*.lua
 .DS_Store
-
-# Local / tool folders
-.claude/
-compy/omr426test/
-leocad_reference/

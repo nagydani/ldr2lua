@@ -61,7 +61,7 @@ end
 -- Append a word to a comment line, adding a space separator if
 -- the line is not empty.
 
-function append_word(line, word)
+local function append_word(line, word)
   if line == "" then
     return word
   end
@@ -71,7 +71,7 @@ end
 -- Check whether appending word to current keeps the resulting
 -- line (with its prefix) within the 64-column limit.
 
-function fits_comment(prefix, current, word)
+local function fits_comment(prefix, current, word)
   local full = prefix .. append_word(current, word)
   return #full <= COLUMN_LIMIT
 end
@@ -79,7 +79,7 @@ end
 -- Wrap a long comment at word boundaries. The first line starts
 -- at column 0; continuations indent by two spaces before "-- ".
 
-function emit_wrapped_comment(rest)
+local function emit_wrapped_comment(rest)
   local prefix, line = "-- ", ""
   for word in rest:gmatch("%S+") do
     if fits_comment(prefix, line, word) then
@@ -100,9 +100,7 @@ end
 function emit_comment(rest)
   if rest == "" then
     table.insert(out, "--")
-    return
-  end
-  if #rest + 3 <= COLUMN_LIMIT then
+  elseif #rest + 3 <= COLUMN_LIMIT then
     table.insert(out, "-- " .. rest)
   else
     emit_wrapped_comment(rest)
@@ -113,7 +111,7 @@ end
 -- and write_file so that the "check for nil" pattern is not
 -- repeated.
 
-function open_or_die(path, mode)
+local function open_or_die(path, mode)
   local f = io.open(path, mode)
   if not f then
     error("cannot open: " .. path)
@@ -145,11 +143,11 @@ function write_binary(path, data)
   f:close()
 end
 
-function dir_name(path)
+local function dir_name(path)
   return path:match("^(.*)/[^/]*$") or "."
 end
 
-function join_path(dir, name)
+local function join_path(dir, name)
   if dir == "." then
     return name
   end

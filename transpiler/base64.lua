@@ -1,10 +1,10 @@
 -- Base64 decoding for MPD !DATA blocks.
 
-B64 = { }
+local B64 = { }
 
 -- Build the alphabet lookup once at module load time.
 
-function init_base64()
+do
   local chars
   chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   chars = chars .. "abcdefghijklmnopqrstuvwxyz"
@@ -16,17 +16,18 @@ end
 
 -- Padding contributes zero bits to the 24-bit group.
 
-function b64_value(text, i)
+local function b64_value(text, i)
   local c = text:sub(i, i)
   if c == "=" then
     return 0
+  else
+    return B64[c]
   end
-  return B64[c]
 end
 
 -- Pack one 4-character group into a 24-bit integer.
 
-function b64_chunk(text, i)
+local function b64_chunk(text, i)
   local a = b64_value(text, i)
   local b = b64_value(text, i + 1)
   local c = b64_value(text, i + 2)
@@ -36,11 +37,10 @@ end
 
 -- A padded group emits fewer bytes.
 
-function b64_chunk_len(text, i)
+local function b64_chunk_len(text, i)
   if text:sub(i + 2, i + 3) == "==" then
     return 1
-  end
-  if text:sub(i + 3, i + 3) == "=" then
+  elseif text:sub(i + 3, i + 3) == "=" then
     return 2
   end
   return 3
@@ -48,21 +48,21 @@ end
 
 -- Extract one byte from the packed group.
 
-function b64_push(out, n, div)
+local function b64_push(out, n, div)
   local byte = math.floor(n / div) % 256
   table.insert(out, string.char(byte))
 end
 
 -- Decode one base64 group into one, two, or three bytes.
 
-function b64_push_chunk(out, text, i)
+local function b64_push_chunk(out, text, i)
   local n = b64_chunk(text, i)
   local len = b64_chunk_len(text, i)
   b64_push(out, n, 65536)
-  if len > 1 then
+  if len == 2 then
     b64_push(out, n, 256)
-  end
-  if len > 2 then
+  elseif len == 3 then
+    b64_push(out, n, 256)
     b64_push(out, n, 1)
   end
 end
@@ -78,6 +78,3 @@ function b64_decode(text)
   return table.concat(out)
 end
 
--- The decoder is ready after the lookup table is populated.
-
-init_base64()

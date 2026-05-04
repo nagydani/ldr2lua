@@ -1,6 +1,6 @@
 -- LDraw colour parsing and lookup.
 
-FINISH = {
+local FINISH = {
   CHROME = true,
   PEARLESCENT = true,
   RUBBER = true,
@@ -10,13 +10,13 @@ FINISH = {
 
 -- Quote generated Lua string literals consistently.
 
-function quote(s)
+local function quote(s)
   return ("%q"):format(s)
 end
 
 -- Turn an LDraw colour name into a Lua identifier.
 
-function color_name(name)
+local function color_name(name)
   local s = name:gsub("[^%w_]", "_")
   if s:match("^%d") then
     s = "C_" .. s
@@ -36,7 +36,7 @@ end
 
 -- Find an LDConfig attribute by token name.
 
-function find_key(tokens, key, first)
+local function find_key(tokens, key, first)
   for i = first or 1, #tokens do
     if tokens[i] == key then
       return i
@@ -46,7 +46,7 @@ end
 
 -- Read the value following an LDConfig attribute.
 
-function attr(tokens, key, first)
+local function attr(tokens, key, first)
   local i = find_key(tokens, key, first)
   if i then
     return tokens[i + 1]
@@ -55,23 +55,24 @@ end
 
 -- Accept both #RRGGBB and 0xRRGGBB notation.
 
-function hex_start(hex)
+local function hex_start(hex)
   if hex:sub(1, 1) == "#" then
     return 2
+  else
+    return 3
   end
-  return 3
 end
 
 -- Convert one hex byte to a 0..1 channel.
 
-function hex_byte(hex, first)
+local function hex_byte(hex, first)
   local s = hex:sub(first, first + 1)
   return tonumber(s, 16) / 255
 end
 
 -- Convert VALUE or EDGE colour data to a Lua array.
 
-function hex_values(hex, alpha)
+local function hex_values(hex, alpha)
   local first = hex_start(hex)
   local t = { }
   table.insert(t, fmt_num(hex_byte(hex, first)))
@@ -85,7 +86,7 @@ end
 
 -- Emit a multi-line Lua table field.
 
-function emit_array(name, values, pad)
+local function emit_array(name, values, pad)
   pad = pad or "  "
   table.insert(out, pad .. name .. " = {")
   for i = 1, #values do
@@ -96,14 +97,14 @@ end
 
 -- Emit one scalar table field.
 
-function emit_field(name, value, pad)
+local function emit_field(name, value, pad)
   pad = pad or "  "
   table.insert(out, pad .. name .. " = " .. value .. ",")
 end
 
 -- Skip absent optional LDConfig attributes.
 
-function emit_optional_field(name, value, pad)
+local function emit_optional_field(name, value, pad)
   if value then
     emit_field(name, value, pad)
   end
@@ -111,14 +112,14 @@ end
 
 -- Keep the transpiler lookup beside each colour definition.
 
-function emit_color_id(code, name)
+local function emit_color_id(code, name)
   local line = "color_id[" .. code .. "] = "
   table.insert(out, line .. quote(name))
 end
 
 -- Emit code, value, edge, and luminance fields.
 
-function emit_color_head(tokens, name, code)
+local function emit_color_head(tokens, name, code)
   local alpha = attr(tokens, "ALPHA")
   emit_color_id(code, name)
   table.insert(out, name .. " = {")
@@ -130,7 +131,7 @@ end
 
 -- Emit simple finish markers such as CHROME or RUBBER.
 
-function emit_finish(tokens)
+local function emit_finish(tokens)
   for i = 1, #tokens do
     if FINISH[tokens[i]] then
       emit_field("finish", quote(tokens[i]))
@@ -140,19 +141,19 @@ end
 
 -- Glitter and speckle use either SIZE or min/max size.
 
-function emit_grain_size(tokens, mi)
+local function emit_grain_size(tokens, mi)
   local size = attr(tokens, "SIZE", mi)
   if size then
     emit_field("size", size, "    ")
-    return
+  else
+    emit_field("minsize", attr(tokens, "MINSIZE", mi), "    ")
+    emit_field("maxsize", attr(tokens, "MAXSIZE", mi), "    ")
   end
-  emit_field("minsize", attr(tokens, "MINSIZE", mi), "    ")
-  emit_field("maxsize", attr(tokens, "MAXSIZE", mi), "    ")
 end
 
 -- Emit nested VALUE data for GLITTER and SPECKLE.
 
-function emit_grain_value(tokens, mi)
+local function emit_grain_value(tokens, mi)
   local alpha = attr(tokens, "ALPHA", mi)
   local value = attr(tokens, "VALUE", mi)
   local lum = attr(tokens, "LUMINANCE", mi)
@@ -162,7 +163,7 @@ end
 
 -- Emit a GLITTER or SPECKLE material table.
 
-function emit_grain(kind, tokens, mi)
+local function emit_grain(kind, tokens, mi)
   table.insert(out, "  " .. kind:lower() .. " = {")
   emit_grain_value(tokens, mi)
   emit_field("fraction", attr(tokens, "FRACTION", mi), "    ")
@@ -174,7 +175,7 @@ end
 
 -- FABRIC stores a named fabric variant.
 
-function emit_fabric(tokens, mi)
+local function emit_fabric(tokens, mi)
   local fabric = tokens[mi + 2]
   if fabric then
     emit_field("fabric", quote(fabric))
@@ -183,7 +184,7 @@ end
 
 -- Emit the MATERIAL branch of an LDConfig colour.
 
-function emit_material(tokens)
+local function emit_material(tokens)
   local mi = find_key(tokens, "MATERIAL")
   if not mi then
     return
@@ -210,3 +211,4 @@ function emit_colour(rest)
   emit_material(tokens)
   table.insert(out, "}")
 end
+

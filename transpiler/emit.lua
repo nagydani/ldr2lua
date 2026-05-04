@@ -4,7 +4,7 @@
 -- Try to emit a function call on a single line; return true on
 -- success, false if it would exceed the column limit.
 
-function try_inline_call(name, args)
+local function try_inline_call(name, args)
   local inline = name .. "(" .. table.concat(args, ", ") .. ")"
   if #inline > COLUMN_LIMIT then
     return false
@@ -16,7 +16,7 @@ end
 -- Emit a function call spread across multiple lines, one
 -- argument per line with trailing commas.
 
-function emit_multi_call(name, args)
+local function emit_multi_call(name, args)
   table.insert(out, name .. "(")
   for i = 1, #args do
     local tail = ","

@@ -1,17 +1,17 @@
 -- MPD FILE/NOFILE/!DATA handling.
 
-MPD_PREFIX = "^%s*0%s+"
-MPD_LINE_PREFIX = "%s*0%s+"
+local MPD_PREFIX = "^%s*0%s+"
+local MPD_LINE_PREFIX = "%s*0%s+"
 
 -- Match an MPD meta at the start of any source line.
 
-function has_line(src, pat)
+local function has_line(src, pat)
   return src:match("^" .. pat) or src:match("\n" .. pat)
 end
 
 -- Detect one MPD meta anywhere in the source.
 
-function has_mpd_line(src, pat)
+local function has_mpd_line(src, pat)
   return has_line(src, MPD_LINE_PREFIX .. pat)
 end
 
@@ -25,31 +25,31 @@ end
 
 -- Extract the FILE target exactly as written in the MPD.
 
-function mpd_file_name(line)
+local function mpd_file_name(line)
   return line:match(MPD_PREFIX .. "FILE%s+(.+)%s*$")
 end
 
 -- Extract the output name of a !DATA payload.
 
-function mpd_data_name(line)
+local function mpd_data_name(line)
   return line:match(MPD_PREFIX .. "!DATA%s+(.+)%s*$")
 end
 
 -- NOFILE closes the current FILE or !DATA block.
 
-function mpd_is_nofile(line)
+local function mpd_is_nofile(line)
   return line:match(MPD_PREFIX .. "NOFILE%s*$")
 end
 
 -- Payload lines use the MPD "0 !:" continuation prefix.
 
-function mpd_data_payload(line)
+local function mpd_data_payload(line)
   return line:match(MPD_PREFIX .. "!:%s*(.*)$")
 end
 
 -- Root lines go to the requested output path.
 
-function new_mpd(out_path)
+local function new_mpd(out_path)
   return {
     out_path = out_path,
     root = { },
@@ -61,7 +61,7 @@ end
 
 -- Outside FILE blocks, source is preserved as Lua comments.
 
-function mpd_comment(st, line)
+local function mpd_comment(st, line)
   local old = out
   out = st.root
   if line == "" then
@@ -74,7 +74,7 @@ end
 
 -- A FILE block becomes its own transpiled Lua chunk.
 
-function mpd_write_file(st)
+local function mpd_write_file(st)
   local path = lua_output_path(st.out_path, st.name)
   local lines = transpile_lines(st.lines)
   write_lines(path, lines, "w")
@@ -82,14 +82,14 @@ end
 
 -- !DATA blocks are decoded and written as binary files.
 
-function mpd_write_data(st)
+local function mpd_write_data(st)
   local path = data_output_path(st.out_path, st.name)
   write_binary(path, b64_decode(table.concat(st.lines)))
 end
 
 -- Finish the current block before another one starts.
 
-function mpd_close(st)
+local function mpd_close(st)
   if st.kind == "file" then
     mpd_write_file(st)
   elseif st.kind == "data" then
@@ -100,7 +100,7 @@ end
 
 -- Start collecting LDraw lines for a named MPD file.
 
-function mpd_start_file(st, name)
+local function mpd_start_file(st, name)
   mpd_close(st)
   st.kind = "file"
   st.name = name
@@ -109,7 +109,7 @@ end
 
 -- Start collecting base64 payload lines.
 
-function mpd_start_data(st, name)
+local function mpd_start_data(st, name)
   mpd_close(st)
   st.kind = "data"
   st.name = name
@@ -118,7 +118,7 @@ end
 
 -- Route a non-meta line according to the active block.
 
-function mpd_add_line(st, line)
+local function mpd_add_line(st, line)
   if st.kind == "file" then
     table.insert(st.lines, line)
   elseif st.kind == "data" then
@@ -130,7 +130,7 @@ end
 
 -- FILE switches output to a new generated Lua file.
 
-function mpd_file_meta(st, line)
+local function mpd_file_meta(st, line)
   local name = mpd_file_name(line)
   if name then
     mpd_start_file(st, name)
@@ -140,7 +140,7 @@ end
 
 -- !DATA switches output to a decoded binary file.
 
-function mpd_data_meta(st, line)
+local function mpd_data_meta(st, line)
   local name = mpd_data_name(line)
   if name then
     mpd_start_data(st, name)
@@ -150,7 +150,7 @@ end
 
 -- NOFILE returns output to the requested root file.
 
-function mpd_nofile_meta(st, line)
+local function mpd_nofile_meta(st, line)
   if mpd_is_nofile(line) then
     mpd_close(st)
     return true
@@ -159,7 +159,7 @@ end
 
 -- Try the MPD block-control metas in spec order.
 
-function mpd_start_meta(st, line)
+local function mpd_start_meta(st, line)
   return mpd_file_meta(st, line)
     or mpd_data_meta(st, line)
     or mpd_nofile_meta(st, line)
@@ -167,7 +167,7 @@ end
 
 -- Process one physical line of an MPD package.
 
-function mpd_line(st, line)
+local function mpd_line(st, line)
   if mpd_start_meta(st, line) then
     return
   end

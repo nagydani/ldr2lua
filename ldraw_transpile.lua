@@ -18,8 +18,8 @@ COLUMN_LIMIT = 64
 
 EDGE_COLOUR = 24
 
--- Load the transpiler modules. Each module defines its helpers
--- as globals and does not return a namespace.
+-- Load the transpiler modules. Shared entry points remain
+-- global; implementation helpers are file-local inside modules.
 -- orthogonal_bases comes before transpiler.types because the
 -- latter uses orthogonal_base when initialising its tables.
 
@@ -36,11 +36,11 @@ require "transpiler.mpd"
 -- Main: read the input file, normalise line endings, process
 -- each line, and write the result.
 
-function normalise_source(src)
+local function normalise_source(src)
   return src:gsub("\13\n", "\n"):gsub("\13", "\n")
 end
 
-function source_lines(src)
+local function source_lines(src)
   local lines = { }
   for line in (src .. "\n"):gmatch("([^\n]*)\n") do
     table.insert(lines, line)
@@ -56,11 +56,11 @@ function transpile_lines(lines)
   return out
 end
 
-function transpile_source(src)
+local function transpile_source(src)
   return transpile_lines(source_lines(src))
 end
 
-function main(in_path, out_path)
+local function main(in_path, out_path)
   local src = normalise_source(read_file(in_path))
   if has_mpd_meta(src) then
     process_mpd(src, out_path)
@@ -73,3 +73,4 @@ if arg and arg[1] and arg[2] then
   main(arg[1], arg[2])
   print("OK: " .. arg[1] .. " -> " .. arg[2])
 end
+

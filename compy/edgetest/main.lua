@@ -191,4 +191,4 @@ end
 
 load_chunks()
 MODEL = loadfile("ldr_pyramid.lua")
-draw_scene()
+

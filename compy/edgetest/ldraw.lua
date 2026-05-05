@@ -150,46 +150,12 @@ function placeN(sub, q, x, y, z)
   call_frame(sub, q, M, newT)
 end
 
--- Find the source column and sign for one transformed axis.
-
-local function orthogonal_axis(i, j)
-  local v = Vec.axis(j):orthogonal3(i)
-  if v[1] then
-    return 1, v[1]
-  elseif v[2] then
-    return 2, v[2]
-  else
-    return 3, v[3]
-  end
-end
-
--- Copy or negate one parent basis column.
-
-local function orthogonal_column(m, i, j)
-  local axis, sign = orthogonal_axis(i, j)
-  local column = clone(m[axis])
-  if sign < 0 then
-    column:scale(-1)
-  end
-  return column
-end
-
--- Compose an orthogonal local frame without matrix multiply.
-
-local function orthogonal_mat(m, i)
-  return Mat:new({
-    orthogonal_column(m, i, 1),
-    orthogonal_column(m, i, 2),
-    orthogonal_column(m, i, 3)
-  })
-end
-
 -- Generic orthogonal placement by linalg index.
 
 function place(sub, q, x, y, z, i)
   require_sub(sub)
   local oldM, oldT = M, T
-  local newM = orthogonal_mat(oldM, i)
+  local newM = oldM:orthogonal3(i)
   local newT = step_translation(oldM, oldT, x, y, z)
   call_frame(sub, q, newM, newT)
 end

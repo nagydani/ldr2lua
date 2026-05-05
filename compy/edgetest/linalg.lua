@@ -285,9 +285,7 @@ end
 
 -- 3d orthogonal transformation
 function Mat:orthogonal3(i)
-  return fold(self, function(v)
-    return v:orthogonal3(i)
-  end)
+  return fold(self, orthogonal3[i])
 end
 
 -- 3d orthogonal inverse transformation

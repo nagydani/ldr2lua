@@ -66,10 +66,6 @@ local function make_edge_color(q)
   }
 end
 
-local function require_sub(sub)
-  assert(type(sub) == "function", "missing LDraw sub-tree")
-end
-
 -- Expose the current frame as a row-major LDraw reference.
 
 local function make_ldraw_ref(sub, q, m, t)
@@ -145,7 +141,7 @@ end
 -- Identity placement changes only translation and colour.
 
 function placeN(sub, q, x, y, z)
-  require_sub(sub)
+  if not sub then return end
   local newT = step_translation(M, T, x, y, z)
   call_frame(sub, q, M, newT)
 end
@@ -153,7 +149,7 @@ end
 -- Generic orthogonal placement by linalg index.
 
 function place(sub, q, x, y, z, i)
-  require_sub(sub)
+  if not sub then return end
   local oldM, oldT = M, T
   local newM = oldM:orthogonal3(i)
   local newT = step_translation(oldM, oldT, x, y, z)
@@ -209,7 +205,7 @@ end
 -- Compose a diagonal stretch into the traversal frame.
 
 function stretch(sub, q, x, y, z, a, e, i)
-  require_sub(sub)
+  if not sub then return end
   call_transform(sub, q, x, y, z, stretch_mat(a, e, i))
 end
 
@@ -226,7 +222,7 @@ end
 -- Compose a twist transform into the traversal frame.
 
 function twist(sub, q, x, y, z, a, c)
-  require_sub(sub)
+  if not sub then return end
   call_transform(sub, q, x, y, z, make_twist_mat(a, c))
 end
 
@@ -243,7 +239,7 @@ end
 -- Compose a general Type 1 reference matrix.
 
 function ref(sub, q, x, y, z, a, b, c, d, e, f, g, h, i)
-  require_sub(sub)
+  if not sub then return end
   call_transform(sub, q, x, y, z,
     make_ref_mat(a, b, c, d, e, f, g, h, i))
 end
@@ -251,7 +247,7 @@ end
 -- Run one transpiled LDraw tree under a concrete traversal pass.
 
 function traverse_ldraw(root, callbacks, q)
-  require_sub(root)
+  if not root then return end
   local oldCallbacks = save_ldraw_callbacks()
   set_ldraw_callbacks(callbacks)
   local oldM, oldT = M, T

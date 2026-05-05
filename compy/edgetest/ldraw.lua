@@ -2,8 +2,8 @@
 
 local M = Mat.unit(3)
 local T = Vec.d3(0, 0, 0)
-MAIN_COLOR = Main_Colour
-EDGE_COLOR = Edge_Colour
+local ENTER_REF
+local LEAVE_REF
 
 local LDRAW_CALLBACKS = {
   "STEP",
@@ -31,6 +31,30 @@ local function set_ldraw_callbacks(callbacks)
     local name = LDRAW_CALLBACKS[i]
     _G[name] = callbacks[name]
   end
+  ENTER_REF = callbacks.enter_ref
+  LEAVE_REF = callbacks.leave_ref
+end
+
+-- Nested traversal passes temporarily replace DSL callbacks.
+
+local function save_ldraw_callbacks()
+  local saved = { enter_ref = ENTER_REF, leave_ref = LEAVE_REF }
+  for i = 1, #LDRAW_CALLBACKS do
+    local name = LDRAW_CALLBACKS[i]
+    saved[name] = _G[name]
+  end
+  return saved
+end
+
+-- Restore the callback environment seen by the caller.
+
+local function restore_ldraw_callbacks(saved)
+  for i = 1, #LDRAW_CALLBACKS do
+    local name = LDRAW_CALLBACKS[i]
+    _G[name] = saved[name]
+  end
+  ENTER_REF = saved.enter_ref
+  LEAVE_REF = saved.leave_ref
 end
 
 -- LDraw edge colour follows the current main colour.
@@ -44,6 +68,39 @@ end
 
 local function require_sub(sub)
   assert(type(sub) == "function", "missing LDraw sub-tree")
+end
+
+-- Expose the current frame as a row-major LDraw reference.
+
+local function make_ldraw_ref(sub, q, m, t)
+  return {
+    ldraw = sub, color = q.value,
+    x = t:c(1), y = t:c(2), z = t:c(3),
+    a = m:e(1, 1), b = m:e(2, 1), c = m:e(3, 1),
+    d = m:e(1, 2), e = m:e(2, 2), f = m:e(3, 2),
+    g = m:e(1, 3), h = m:e(2, 3), i = m:e(3, 3)
+  }
+end
+
+-- Reference hooks let passes track tree ancestry.
+
+local function enter_ref(sub, q, m, t)
+  if ENTER_REF or LEAVE_REF then
+    local ldraw_ref = make_ldraw_ref(sub, q, m, t)
+    if ENTER_REF then ENTER_REF(ldraw_ref) end
+    return ldraw_ref
+  end
+end
+
+local function leave_ref(ldraw_ref)
+  if LEAVE_REF then
+    LEAVE_REF(ldraw_ref)
+  end
+end
+
+local function restore_frame(m, t, main, edge)
+  M, T = m, t
+  MAIN_COLOR, EDGE_COLOR = main, edge
 end
 
 -- Apply the current tree frame to a local point.
@@ -62,9 +119,10 @@ local function call_frame(sub, q, newM, newT)
   M, T = newM, newT
   MAIN_COLOR = q
   EDGE_COLOR = make_edge_color(q)
+  local ldraw_ref = enter_ref(sub, q, newM, newT)
   sub()
-  M, T = oldM, oldT
-  MAIN_COLOR, EDGE_COLOR = oldMain, oldEdge
+  leave_ref(ldraw_ref)
+  restore_frame(oldM, oldT, oldMain, oldEdge)
 end
 
 -- Translate in the parent coordinate system.
@@ -228,20 +286,15 @@ end
 
 function traverse_ldraw(root, callbacks, q)
   require_sub(root)
+  local oldCallbacks = save_ldraw_callbacks()
   set_ldraw_callbacks(callbacks)
   local oldM, oldT = M, T
   local oldMain, oldEdge = MAIN_COLOR, EDGE_COLOR
   M = Mat.unit(3)
   T = Vec.d3(0, 0, 0)
-  MAIN_COLOR = q or Main_Colour
+  MAIN_COLOR = q
   EDGE_COLOR = make_edge_color(MAIN_COLOR)
   root()
-  M, T = oldM, oldT
-  MAIN_COLOR, EDGE_COLOR = oldMain, oldEdge
+  restore_frame(oldM, oldT, oldMain, oldEdge)
+  restore_ldraw_callbacks(oldCallbacks)
 end
-
-
-
-
-
-

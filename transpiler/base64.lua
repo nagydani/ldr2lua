@@ -77,4 +77,3 @@ function b64_decode(text)
   end
   return table.concat(out)
 end
-

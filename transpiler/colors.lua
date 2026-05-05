@@ -8,6 +8,11 @@ local FINISH = {
   METAL = true
 }
 
+local CURRENT_COLOUR = {
+  [16] = true,
+  [24] = true
+}
+
 -- Quote generated Lua string literals consistently.
 
 local function quote(s)
@@ -205,6 +210,9 @@ function emit_colour(rest)
   local tokens = tokenize(rest)
   local name = color_name(tokens[1])
   local code = attr(tokens, "CODE")
+  if CURRENT_COLOUR[tonumber(code)] then
+    return
+  end
   color_id[tonumber(code)] = name
   emit_color_head(tokens, name, code)
   emit_finish(tokens)

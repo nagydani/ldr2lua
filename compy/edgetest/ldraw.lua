@@ -141,19 +141,21 @@ end
 -- Identity placement changes only translation and colour.
 
 function placeN(sub, q, x, y, z)
-  if not sub then return end
-  local newT = step_translation(M, T, x, y, z)
-  call_frame(sub, q, M, newT)
+  if sub then
+    local newT = step_translation(M, T, x, y, z)
+    call_frame(sub, q, M, newT)
+  end
 end
 
 -- Generic orthogonal placement by linalg index.
 
 function place(sub, q, x, y, z, i)
-  if not sub then return end
-  local oldM, oldT = M, T
-  local newM = oldM:orthogonal3(i)
-  local newT = step_translation(oldM, oldT, x, y, z)
-  call_frame(sub, q, newM, newT)
+  if sub then
+    local oldM, oldT = M, T
+    local newM = oldM:orthogonal3(i)
+    local newT = step_translation(oldM, oldT, x, y, z)
+    call_frame(sub, q, newM, newT)
+  end
 end
 
 -- South is orthogonal transformation 5.
@@ -205,8 +207,9 @@ end
 -- Compose a diagonal stretch into the traversal frame.
 
 function stretch(sub, q, x, y, z, a, e, i)
-  if not sub then return end
-  call_transform(sub, q, x, y, z, stretch_mat(a, e, i))
+  if sub then
+    call_transform(sub, q, x, y, z, stretch_mat(a, e, i))
+  end
 end
 
 -- Build the compact twist rotation matrix.
@@ -222,8 +225,9 @@ end
 -- Compose a twist transform into the traversal frame.
 
 function twist(sub, q, x, y, z, a, c)
-  if not sub then return end
-  call_transform(sub, q, x, y, z, make_twist_mat(a, c))
+  if sub then
+    call_transform(sub, q, x, y, z, make_twist_mat(a, c))
+  end
 end
 
 -- Convert LDraw row-major coefficients to linalg columns.
@@ -239,24 +243,25 @@ end
 -- Compose a general Type 1 reference matrix.
 
 function ref(sub, q, x, y, z, a, b, c, d, e, f, g, h, i)
-  if not sub then return end
-  call_transform(sub, q, x, y, z,
-    make_ref_mat(a, b, c, d, e, f, g, h, i))
+  if sub then
+    call_transform(sub, q, x, y, z,
+      make_ref_mat(a, b, c, d, e, f, g, h, i))
+  end
 end
 
 -- Run one transpiled LDraw tree under a concrete traversal pass.
 
 function traverse_ldraw(root, callbacks, q)
-  if not root then return end
-  local oldCallbacks = save_ldraw_callbacks()
-  set_ldraw_callbacks(callbacks)
-  local oldM, oldT = M, T
-  local oldMain, oldEdge = MAIN_COLOR, EDGE_COLOR
-  M = Mat.unit(3)
-  T = Vec.d3(0, 0, 0)
-  MAIN_COLOR = q
-  EDGE_COLOR = make_edge_color(MAIN_COLOR)
-  root()
-  restore_frame(oldM, oldT, oldMain, oldEdge)
-  restore_ldraw_callbacks(oldCallbacks)
+  if root then
+    local oldCallbacks = save_ldraw_callbacks()
+    set_ldraw_callbacks(callbacks)
+    local oldM, oldT, oldMain, oldEdge = M, T, MAIN_COLOR, EDGE_COLOR
+    M = Mat.unit(3)
+    T = Vec.d3(0, 0, 0)
+    MAIN_COLOR = q
+    EDGE_COLOR = make_edge_color(MAIN_COLOR)
+    root()
+    restore_frame(oldM, oldT, oldMain, oldEdge)
+    restore_ldraw_callbacks(oldCallbacks)
+  end
 end

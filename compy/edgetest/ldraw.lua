@@ -2,31 +2,9 @@
 
 local M = Mat.unit(3)
 local T = Vec.d3(0, 0, 0)
-local CALLBACKS = { }
-local DISPATCH = { }
+local GLOBAL_MT = { }
 
--- A traversal pass supplies callbacks for tree operations.
-
-local function install_callback(name)
-  if not DISPATCH[name] then
-    DISPATCH[name] = function(...)
-      return CALLBACKS[name](...)
-    end
-    _G[name] = DISPATCH[name]
-  end
-end
-
-local function push_callbacks(callbacks)
-  setmetatable(callbacks, { __index = CALLBACKS })
-  CALLBACKS = callbacks
-  for name in pairs(callbacks) do
-    install_callback(name)
-  end
-end
-
-local function pop_callbacks()
-  CALLBACKS = getmetatable(CALLBACKS).__index
-end
+setmetatable(_G, GLOBAL_MT)
 
 -- LDraw edge colour follows the current main colour.
 
@@ -52,8 +30,8 @@ end
 -- Reference hooks let passes track tree ancestry.
 
 local function enter_ref(sub, q, m, t)
-  local enter, leave = rawget(CALLBACKS, "enter_ref"),
-    rawget(CALLBACKS, "leave_ref")
+  local callbacks = GLOBAL_MT.__index
+  local enter, leave = callbacks.enter_ref, callbacks.leave_ref
   if enter or leave then
     local ldraw_ref = make_ldraw_ref(sub, q, m, t)
     if enter then enter(ldraw_ref) end
@@ -62,7 +40,7 @@ local function enter_ref(sub, q, m, t)
 end
 
 local function leave_ref(ldraw_ref)
-  local leave = rawget(CALLBACKS, "leave_ref")
+  local leave = GLOBAL_MT.__index.leave_ref
   if leave then
     leave(ldraw_ref)
   end
@@ -227,7 +205,8 @@ end
 
 function traverse_ldraw(root, callbacks, q)
   if root then
-    push_callbacks(callbacks)
+    local oldIndex = GLOBAL_MT.__index
+    GLOBAL_MT.__index = callbacks
     local oldM, oldT, oldMain, oldEdge = M, T, MAIN_COLOR, EDGE_COLOR
     M = Mat.unit(3)
     T = Vec.d3(0, 0, 0)
@@ -235,6 +214,6 @@ function traverse_ldraw(root, callbacks, q)
     EDGE_COLOR = make_edge_color(MAIN_COLOR)
     root()
     restore_frame(oldM, oldT, oldMain, oldEdge)
-    pop_callbacks()
+    GLOBAL_MT.__index = oldIndex
   end
 end

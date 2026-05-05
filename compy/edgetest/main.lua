@@ -101,8 +101,7 @@ local DAT_FILES = {
 }
 
 local function load_chunks()
-  for i = 1, #DAT_FILES do
-    local name = DAT_FILES[i]
+  for _, name in pairs(DAT_FILES) do
     _G[name] = loadfile(name .. ".lua")
   end
 end
@@ -191,4 +190,3 @@ end
 
 load_chunks()
 MODEL = loadfile("ldr_pyramid.lua")
-

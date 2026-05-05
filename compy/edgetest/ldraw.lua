@@ -2,59 +2,30 @@
 
 local M = Mat.unit(3)
 local T = Vec.d3(0, 0, 0)
-local ENTER_REF
-local LEAVE_REF
-
-local LDRAW_CALLBACKS = {
-  "STEP",
-  "CLEAR",
-  "PAUSE",
-  "SAVE",
-  "WRITE",
-  "PRINT",
-  "LDRAW_ORG",
-  "CATEGORY",
-  "PREVIEW",
-  "KEYWORD",
-  "edge",
-  "line",
-  "tri",
-  "quad",
-  "outline",
-  "color_outline"
-}
+local CALLBACKS = { }
+local DISPATCH = { }
 
 -- A traversal pass supplies callbacks for tree operations.
 
-local function set_ldraw_callbacks(callbacks)
-  for i = 1, #LDRAW_CALLBACKS do
-    local name = LDRAW_CALLBACKS[i]
-    _G[name] = callbacks[name]
+local function install_callback(name)
+  if not DISPATCH[name] then
+    DISPATCH[name] = function(...)
+      return CALLBACKS[name](...)
+    end
+    _G[name] = DISPATCH[name]
   end
-  ENTER_REF = callbacks.enter_ref
-  LEAVE_REF = callbacks.leave_ref
 end
 
--- Nested traversal passes temporarily replace DSL callbacks.
-
-local function save_ldraw_callbacks()
-  local saved = { enter_ref = ENTER_REF, leave_ref = LEAVE_REF }
-  for i = 1, #LDRAW_CALLBACKS do
-    local name = LDRAW_CALLBACKS[i]
-    saved[name] = _G[name]
+local function push_callbacks(callbacks)
+  setmetatable(callbacks, { __index = CALLBACKS })
+  CALLBACKS = callbacks
+  for name in pairs(callbacks) do
+    install_callback(name)
   end
-  return saved
 end
 
--- Restore the callback environment seen by the caller.
-
-local function restore_ldraw_callbacks(saved)
-  for i = 1, #LDRAW_CALLBACKS do
-    local name = LDRAW_CALLBACKS[i]
-    _G[name] = saved[name]
-  end
-  ENTER_REF = saved.enter_ref
-  LEAVE_REF = saved.leave_ref
+local function pop_callbacks()
+  CALLBACKS = getmetatable(CALLBACKS).__index
 end
 
 -- LDraw edge colour follows the current main colour.
@@ -81,16 +52,19 @@ end
 -- Reference hooks let passes track tree ancestry.
 
 local function enter_ref(sub, q, m, t)
-  if ENTER_REF or LEAVE_REF then
+  local enter, leave = rawget(CALLBACKS, "enter_ref"),
+    rawget(CALLBACKS, "leave_ref")
+  if enter or leave then
     local ldraw_ref = make_ldraw_ref(sub, q, m, t)
-    if ENTER_REF then ENTER_REF(ldraw_ref) end
+    if enter then enter(ldraw_ref) end
     return ldraw_ref
   end
 end
 
 local function leave_ref(ldraw_ref)
-  if LEAVE_REF then
-    LEAVE_REF(ldraw_ref)
+  local leave = rawget(CALLBACKS, "leave_ref")
+  if leave then
+    leave(ldraw_ref)
   end
 end
 
@@ -253,8 +227,7 @@ end
 
 function traverse_ldraw(root, callbacks, q)
   if root then
-    local oldCallbacks = save_ldraw_callbacks()
-    set_ldraw_callbacks(callbacks)
+    push_callbacks(callbacks)
     local oldM, oldT, oldMain, oldEdge = M, T, MAIN_COLOR, EDGE_COLOR
     M = Mat.unit(3)
     T = Vec.d3(0, 0, 0)
@@ -262,6 +235,6 @@ function traverse_ldraw(root, callbacks, q)
     EDGE_COLOR = make_edge_color(MAIN_COLOR)
     root()
     restore_frame(oldM, oldT, oldMain, oldEdge)
-    restore_ldraw_callbacks(oldCallbacks)
+    pop_callbacks()
   end
 end

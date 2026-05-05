@@ -101,8 +101,8 @@ end
 
 local function base_callbacks()
   local callbacks = { }
-  for i = 1, #PASS_NAMES do
-    callbacks[PASS_NAMES[i]] = noop
+  for _, name in pairs(PASS_NAMES) do
+    callbacks[name] = noop
   end
   return callbacks
 end

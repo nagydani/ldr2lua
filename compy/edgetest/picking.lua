@@ -81,16 +81,16 @@ local function find_quad(ctx, x1, y1, z1, x2, y2, z2,
   keep_hit(ctx, ray_triangle_l(ctx.ray, p1, p3, p4))
 end
 
--- Mirror traversal nesting so hits resolve to their Part ancestor.
+-- Snapshot ctx.part on enter; restore via Lua's call stack.
 
-local function push_ref(ctx, ldraw_ref)
-  table.insert(ctx.stack, { ref = ctx.ref, part = ctx.part })
-  ctx.ref = ldraw_ref
+local function on_enter(ctx, ref)
+  local saved_part = ctx.part
+  ctx.ref = ref
+  return saved_part
 end
 
-local function pop_ref(ctx)
-  local old = table.remove(ctx.stack)
-  ctx.ref, ctx.part = old.ref, old.part
+local function on_leave(ctx, saved_part)
+  ctx.part = saved_part
 end
 
 local function mark_part(ctx, kind)
@@ -111,8 +111,8 @@ end
 
 local function find_callbacks(ctx)
   local callbacks = base_callbacks()
-  callbacks.enter_ref = function(r) push_ref(ctx, r) end
-  callbacks.leave_ref = function() pop_ref(ctx) end
+  callbacks.enter_ref = function(r) return on_enter(ctx, r) end
+  callbacks.leave_ref = function(s) on_leave(ctx, s) end
   callbacks.LDRAW_ORG = function(k) mark_part(ctx, k) end
   callbacks.tri = function(_, ...) find_tri(ctx, ...) end
   callbacks.quad = function(_, ...) find_quad(ctx, ...) end
@@ -122,8 +122,7 @@ end
 local function make_context(x, y, z, dx, dy, dz)
   return {
     ray = { origin = Vec.d3(x, y, z), dir = Vec.d3(dx, dy, dz) },
-    l = math.huge,
-    stack = { }
+    l = math.huge
   }
 end
 

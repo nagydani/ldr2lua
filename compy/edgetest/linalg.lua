@@ -222,7 +222,7 @@ end
 
 -- create diagonal matrix
 function Vec:diag()
-  m = { }
+  local m = { }
   for i, v in pairs(self) do
     m[i] = Vec:new({ [i] = v })
   end

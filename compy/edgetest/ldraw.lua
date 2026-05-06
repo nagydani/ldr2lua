@@ -1,7 +1,9 @@
 -- LDraw tree traversal runtime.
 
+require("linalg")
+
 local M = Mat.unit(3)
-local T = Vec.d3(0, 0, 0)
+local T = Vec:new({ })
 local GLOBAL_MT = { }
 
 setmetatable(_G, GLOBAL_MT)
@@ -160,21 +162,11 @@ function mirrorNS(sub, q, x, y, z)
   place(sub, q, x, y, z, 4)
 end
 
--- Build a diagonal scaling matrix.
-
-local function stretch_mat(a, e, i)
-  return Mat:new({
-    Vec.d3(a, 0, 0),
-    Vec.d3(0, e, 0),
-    Vec.d3(0, 0, i)
-  })
-end
-
 -- Compose a diagonal stretch into the traversal frame.
 
 function stretch(sub, q, x, y, z, a, e, i)
   if sub then
-    call_transform(sub, q, x, y, z, stretch_mat(a, e, i))
+    call_transform(sub, q, x, y, z, Mat.diag(a, e, i))
   end
 end
 
@@ -183,7 +175,7 @@ end
 local function make_twist_mat(a, c)
   return Mat:new({
     Vec.d3(a, 0, -c),
-    Vec.d3(0, 1, 0),
+    Vec.axis(2),
     Vec.d3(c, 0, a)
   })
 end
@@ -221,7 +213,7 @@ function traverse_ldraw(root, callbacks, q)
   if root then
     GLOBAL_MT.__index = callbacks
     M = Mat.unit(3)
-    T = Vec.d3(0, 0, 0)
+    T = Vec:new({ })
     MAIN_COLOR = q
     EDGE_COLOR = make_edge_color(q)
     root()

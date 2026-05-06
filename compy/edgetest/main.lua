@@ -13,7 +13,7 @@ local D = 1000
 local CENTER_X = 512
 local CENTER_Y = 300
 local VIEW_M = Mat.unit(3)
-local VIEW_T = Vec.d3(0, 0, 0)
+local VIEW_T = Vec:new({ })
 local SELECTED_PART
 local MODEL
 local ROOT_COLOR = Yellow

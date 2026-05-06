@@ -114,6 +114,11 @@ function Vec:renorm()
   end
 end
 
+-- normalization
+function Vec:norm()
+  self:scale(1 / math.sqrt(self:dot(self)))
+end
+
 -- transformations
 
 -- permutation, returns true for odd permutations
@@ -215,6 +220,14 @@ function Vec:tr(m)
   return t
 end
 
+-- create diagonal matrix
+function Vec:diag()
+  m = { }
+  for i, v in pairs(self) do
+    m[i] = Vec:new({ [i] = v })
+  end
+end
+
 -- Matrix operations
 
 -- prototype zero matrix
@@ -235,6 +248,15 @@ function Mat.unit(d)
     m[i] = Vec.axis(i)
   end
   return m
+end
+
+-- diagonal matrix constructor
+function Mat.diag(...)
+  local m = { }
+  for i, v in ipairs(arg) do
+    m[i] = Vec:new({ [i] = v })
+  end
+  return Mat:new(m)
 end
 
 -- orthonormal 3d matrix constructor from unit quaternion

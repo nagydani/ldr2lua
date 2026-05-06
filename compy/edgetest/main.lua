@@ -23,15 +23,10 @@ local function perspective(x, y, z)
   return CENTER_X + x * dz, CENTER_Y + y * dz
 end
 
-local function apply_view(p)
-  local g = p:tr(VIEW_M)
-  g:acc(VIEW_T)
-  return g
-end
-
 local function screen_point(x, y, z)
-  local g = apply_view(apply_global(Vec.d3(x, y, z)))
-  return perspective(g:c3())
+  local gx, gy, gz = apply_global3(x, y, z)
+  local vx, vy, vz = transform3(VIEW_M, VIEW_T, gx, gy, gz)
+  return perspective(vx, vy, vz)
 end
 
 -- Type 2 segment in the current gfx colour.
@@ -57,7 +52,7 @@ end
 
 -- Type 5 conditional edge in the current gfx colour.
 
-local function draw_outline_with(x1, y1, z1, x2, y2, z2,
+local function draw_outline(x1, y1, z1, x2, y2, z2,
     x3, y3, z3, x4, y4, z4)
   local sx1, sy1 = screen_point(x1, y1, z1)
   local sx2, sy2 = screen_point(x2, y2, z2)
@@ -68,15 +63,9 @@ local function draw_outline_with(x1, y1, z1, x2, y2, z2,
   end
 end
 
-local function draw_outline(x1, y1, z1, x2, y2, z2,
-    x3, y3, z3, x4, y4, z4)
-  draw_outline_with(x1, y1, z1, x2, y2, z2, x3, y3, z3,
-    x4, y4, z4)
-end
-
 local function draw_color_outline(_, x1, y1, z1, x2, y2, z2,
     x3, y3, z3, x4, y4, z4)
-  draw_outline_with(x1, y1, z1, x2, y2, z2, x3, y3, z3,
+  draw_outline(x1, y1, z1, x2, y2, z2, x3, y3, z3,
     x4, y4, z4)
 end
 
@@ -168,7 +157,6 @@ local function pick_part(mx, my)
 end
 
 local function draw_scene()
-  setup_view()
   gfx.setColor(0, 0, 0, 1)
   draw_ldraw(MODEL)
   if SELECTED_PART then
@@ -189,4 +177,5 @@ function love.draw()
 end
 
 load_chunks()
+setup_view()
 MODEL = loadfile("ldr_pyramid.lua")

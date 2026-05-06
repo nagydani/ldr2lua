@@ -254,7 +254,7 @@ end
 -- diagonal matrix constructor
 function Mat.diag(...)
   local m = { }
-  for i, v in ipairs(arg) do
+  for i, v in ipairs({...}) do
     m[i] = Vec:new({ [i] = v })
   end
   return Mat:new(m)

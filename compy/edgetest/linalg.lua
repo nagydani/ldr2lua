@@ -226,6 +226,7 @@ function Vec:diag()
   for i, v in pairs(self) do
     m[i] = Vec:new({ [i] = v })
   end
+  return Mat:new(m)
 end
 
 -- Matrix operations

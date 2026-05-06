@@ -27,28 +27,42 @@ local function make_ldraw_ref(sub, q, m, t)
   }
 end
 
--- Reference hooks let passes track tree ancestry.
+-- Reference hooks. enter_ref returns whatever leave_ref will
+-- restore; the value rides on Lua's call stack via call_frame.
 
 local function enter_ref(sub, q, m, t)
-  local callbacks = GLOBAL_MT.__index
-  local enter, leave = callbacks.enter_ref, callbacks.leave_ref
-  if enter or leave then
-    local ldraw_ref = make_ldraw_ref(sub, q, m, t)
-    if enter then enter(ldraw_ref) end
-    return ldraw_ref
+  local enter = GLOBAL_MT.__index.enter_ref
+  if enter then
+    return enter(make_ldraw_ref(sub, q, m, t))
   end
 end
 
-local function leave_ref(ldraw_ref)
+local function leave_ref(saved)
   local leave = GLOBAL_MT.__index.leave_ref
   if leave then
-    leave(ldraw_ref)
+    leave(saved)
   end
 end
 
 local function restore_frame(m, t, main, edge)
   M, T = m, t
   MAIN_COLOR, EDGE_COLOR = main, edge
+end
+
+-- Apply matrix m and translation t to numeric coords.
+
+function transform3(m, t, x, y, z)
+  local m1, m2, m3 = m[1], m[2], m[3]
+  local ax = (m1[1] or 0)*x + (m2[1] or 0)*y + (m3[1] or 0)*z
+  local ay = (m1[2] or 0)*x + (m2[2] or 0)*y + (m3[2] or 0)*z
+  local az = (m1[3] or 0)*x + (m2[3] or 0)*y + (m3[3] or 0)*z
+  return ax + (t[1] or 0), ay + (t[2] or 0), az + (t[3] or 0)
+end
+
+-- Apply the current tree frame to numeric coords.
+
+function apply_global3(x, y, z)
+  return transform3(M, T, x, y, z)
 end
 
 -- Apply the current tree frame to a local point.
@@ -67,9 +81,9 @@ local function call_frame(sub, q, newM, newT)
   M, T = newM, newT
   MAIN_COLOR = q
   EDGE_COLOR = make_edge_color(q)
-  local ldraw_ref = enter_ref(sub, q, newM, newT)
+  local saved = enter_ref(sub, q, newM, newT)
   sub()
-  leave_ref(ldraw_ref)
+  leave_ref(saved)
   restore_frame(oldM, oldT, oldMain, oldEdge)
 end
 
@@ -205,15 +219,11 @@ end
 
 function traverse_ldraw(root, callbacks, q)
   if root then
-    local oldIndex = GLOBAL_MT.__index
     GLOBAL_MT.__index = callbacks
-    local oldM, oldT, oldMain, oldEdge = M, T, MAIN_COLOR, EDGE_COLOR
     M = Mat.unit(3)
     T = Vec.d3(0, 0, 0)
     MAIN_COLOR = q
-    EDGE_COLOR = make_edge_color(MAIN_COLOR)
+    EDGE_COLOR = make_edge_color(q)
     root()
-    restore_frame(oldM, oldT, oldMain, oldEdge)
-    GLOBAL_MT.__index = oldIndex
   end
 end

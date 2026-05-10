@@ -50,14 +50,10 @@ end
 
 function transpile_lines(lines)
   out = { }
-  for i = 1, #lines do
-    process_line(lines[i])
+  for _, line in ipairs(lines) do
+    process_line(line)
   end
   return out
-end
-
-local function transpile_source(src)
-  return transpile_lines(source_lines(src))
 end
 
 local function main(in_path, out_path)
@@ -65,7 +61,7 @@ local function main(in_path, out_path)
   if has_mpd_meta(src) then
     process_mpd(src, out_path)
   else
-    write_lines(out_path, transpile_source(src), "w")
+    write_lines(out_path, transpile_lines(source_lines(src)), "w")
   end
 end
 
@@ -73,4 +69,3 @@ if arg and arg[1] and arg[2] then
   main(arg[1], arg[2])
   print("OK: " .. arg[1] .. " -> " .. arg[2])
 end
-

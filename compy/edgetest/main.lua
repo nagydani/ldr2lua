@@ -5,6 +5,7 @@ TOL = 0.0005
 require "linalg"
 require "ldraw_colors"
 require "ldraw"
+require "bfc"
 require "picking"
 
 local gfx = love.graphics
@@ -13,7 +14,7 @@ local D = 1000
 local CENTER_X = 512
 local CENTER_Y = 300
 local VIEW_M = Mat.unit(3)
-local VIEW_T = Vec:new({ })
+local VIEW_T = Vec.d3(0, 0, 0)
 local SELECTED_PART
 local MODEL
 local ROOT_COLOR = Yellow
@@ -95,6 +96,12 @@ local function load_chunks()
   end
 end
 
+local function probe_radii()
+  for _, name in pairs(DAT_FILES) do
+    probe_part(_G[name])
+  end
+end
+
 local function setup_view()
   VIEW_M = Mat:new({
     Vec.d3(0.8779, 0.1685, -0.4489),
@@ -117,6 +124,9 @@ local DRAW_CALLBACKS = {
   CATEGORY = ignore,
   PREVIEW = ignore,
   KEYWORD = ignore,
+  enter_ref = ignore,
+  leave_ref = ignore,
+  call = function(sub) sub() end,
   edge = draw_line_segment,
   line = draw_line,
   tri = ignore,
@@ -177,5 +187,6 @@ function love.draw()
 end
 
 load_chunks()
+probe_radii()
 setup_view()
 MODEL = loadfile("ldr_pyramid.lua")

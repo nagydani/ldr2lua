@@ -18,12 +18,12 @@ end
 
 local function emit_multi_call(name, args)
   table.insert(out, name .. "(")
-  for i = 1, #args do
+  for i, arg in ipairs(args) do
     local tail = ","
     if i == #args then
       tail = ""
     end
-    table.insert(out, "  " .. args[i] .. tail)
+    table.insert(out, "  " .. arg .. tail)
   end
   table.insert(out, ")")
 end

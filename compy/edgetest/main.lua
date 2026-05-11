@@ -90,14 +90,22 @@ local DAT_FILES = {
   "dat_stug_2x2"
 }
 
+-- Subset of DAT_FILES that are pickable Parts. Each one gets a
+-- sphere radius probed for ray-skipping during picking.
+
+local PARTS = {
+  "dat_3001",
+  "dat_3003"
+}
+
 local function load_chunks()
   for _, name in pairs(DAT_FILES) do
     _G[name] = loadfile(name .. ".lua")
   end
 end
 
-local function probe_radii()
-  for _, name in pairs(DAT_FILES) do
+local function probe_radii(parts)
+  for _, name in pairs(parts) do
     probe_part(_G[name])
   end
 end
@@ -161,9 +169,7 @@ local function mouse_ray(mx, my)
 end
 
 local function pick_part(mx, my)
-  local origin, dir = mouse_ray(mx, my)
-  return find_part(MODEL, origin:c(1), origin:c(2), origin:c(3),
-    dir:c(1), dir:c(2), dir:c(3))
+  return find_part(MODEL, mouse_ray(mx, my))
 end
 
 local function draw_scene()
@@ -187,6 +193,8 @@ function love.draw()
 end
 
 load_chunks()
-probe_radii()
+probe_radii(PARTS)
 setup_view()
 MODEL = loadfile("ldr_pyramid.lua")
+
+

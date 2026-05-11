@@ -30,6 +30,12 @@ function apply_global(p)
   return g
 end
 
+-- Expose the current global frame matrix to other passes.
+
+function global_matrix()
+  return M
+end
+
 -- Invoke a sub-tree under an already composed frame.
 -- The pass-defined call(sub) hook decides whether sub runs.
 
@@ -157,3 +163,5 @@ function traverse_ldraw(root, callbacks, q)
     root()
   end
 end
+
+

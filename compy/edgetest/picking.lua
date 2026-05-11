@@ -8,6 +8,7 @@ local PASS_NAMES = {
   "WRITE",
   "PRINT",
   "CATEGORY",
+  "LDRAW_ORG",
   "PREVIEW",
   "KEYWORD",
   "edge",
@@ -18,8 +19,6 @@ local PASS_NAMES = {
 
 local function noop()
 end
-
-local ROOT_COLOR = Yellow
 
 local function cross(a, b)
   local ax, ay, az = a:c3()
@@ -60,7 +59,8 @@ local function global_point(x, y, z)
   return apply_global(Vec.d3(x, y, z))
 end
 
--- True if (p1, p2, p3) faces the ray origin per winding sign.
+-- True if (p1, p2, p3) faces the ray origin per winding sign
+-- and matrix-reversal sign of the current global frame.
 
 local function is_front_face(ray, p1, p2, p3)
   local ox, oy, oz = ray.origin:c3()
@@ -69,7 +69,7 @@ local function is_front_face(ray, p1, p2, p3)
   local p3x, p3y, p3z = p3:c3()
   local sv = signed_volume3(p1x, p1y, p1z, p2x, p2y, p2z,
     p3x, p3y, p3z, ox, oy, oz)
-  return sv * bfc_effective_winding() > 0
+  return sv * bfc_winding() * signed_det3(global_matrix()) > 0
 end
 
 -- Store the nearest positive surface hit seen so far.
@@ -105,9 +105,9 @@ end
 
 -- Build a row-major LDraw reference from raw frame args.
 
-local function make_ldraw_ref(sub, q, m, t)
+local function make_ldraw_ref(sub, m, t)
   return {
-    ldraw = sub, color = q.value,
+    ldraw = sub,
     x = t:c(1), y = t:c(2), z = t:c(3),
     a = m:e(1, 1), b = m:e(2, 1), c = m:e(3, 1),
     d = m:e(1, 2), e = m:e(2, 2), f = m:e(3, 2),
@@ -115,24 +115,27 @@ local function make_ldraw_ref(sub, q, m, t)
   }
 end
 
--- Snapshot ctx.part and BFC state on enter; restored on leave
--- via Lua's call stack.
+-- Squared sphere radius keyed by Part chunk function. Filled
+-- by probe_part during startup; on_enter reads it to detect
+-- entry into a pickable Part subtree.
 
-local function on_enter(ctx, sub, q, m, t)
-  local saved = { part = ctx.part, bfc = bfc_enter(m) }
-  ctx.ref = make_ldraw_ref(sub, q, m, t)
+local RADIUS = { }
+
+-- Snapshot ctx.part and BFC state on enter; restored on leave
+-- via Lua's call stack. RADIUS[sub] presence marks sub as a
+-- Part, so its frame ref becomes the pickable region.
+
+local function on_enter(ctx, sub, m, t)
+  local saved = { part = ctx.part, bfc = bfc_enter() }
+  if RADIUS[sub] then
+    ctx.part = make_ldraw_ref(sub, m, t)
+  end
   return saved
 end
 
 local function on_leave(ctx, saved)
   ctx.part = saved.part
   bfc_leave(saved.bfc)
-end
-
-local function mark_part(ctx, kind)
-  if kind == "Part" then
-    ctx.part = ctx.ref
-  end
 end
 
 local function base_callbacks()
@@ -142,14 +145,6 @@ local function base_callbacks()
   end
   return callbacks
 end
-
--- Squared sphere radius keyed by Part chunk function.
-
-local RADIUS = { }
-
--- List of Part chunks built by probe_part.
-
-local PARTS = { }
 
 -- Accumulate squared distance of one vertex from origin.
 
@@ -174,29 +169,27 @@ local function probe_quad(ctx, _, x1, y1, z1, x2, y2, z2,
   probe_vertex(ctx, x4, y4, z4)
 end
 
--- Probe pass: find Part kind and max squared vertex radius.
+-- Probe pass: collect max squared vertex radius across the
+-- chunk's triangles and quads.
 
 local function probe_callbacks(ctx)
   local callbacks = base_callbacks()
   callbacks.enter_ref = noop
   callbacks.leave_ref = noop
   callbacks.call = function(sub) sub() end
-  callbacks.LDRAW_ORG = function(k) ctx.kind = k end
   callbacks.tri = function(...) probe_tri(ctx, ...) end
   callbacks.quad = function(...) probe_quad(ctx, ...) end
   return callbacks
 end
 
--- Add chunk to the PARTS list and store its radius if its
--- !LDRAW_ORG marks it a Part.
+-- Probe pass: walk the chunk and write its squared bounding
+-- sphere radius to RADIUS[chunk]. Caller passes only chunks
+-- that should be pickable Parts.
 
 function probe_part(chunk)
   local ctx = { max_r2 = 0 }
-  traverse_ldraw(chunk, probe_callbacks(ctx), ROOT_COLOR)
-  if ctx.kind == "Part" then
-    table.insert(PARTS, chunk)
-    RADIUS[chunk] = ctx.max_r2
-  end
+  traverse_ldraw(chunk, probe_callbacks(ctx), Yellow)
+  RADIUS[chunk] = ctx.max_r2
 end
 
 -- Ray-sphere test against a sphere at the current frame origin.
@@ -225,28 +218,31 @@ end
 local function find_callbacks(ctx)
   local callbacks = base_callbacks()
   callbacks.enter_ref = function(sub, q, m, t)
-    return on_enter(ctx, sub, q, m, t)
+    return on_enter(ctx, sub, m, t)
   end
   callbacks.leave_ref = function(s) on_leave(ctx, s) end
   callbacks.call = function(sub) check_call(ctx, sub) end
-  callbacks.LDRAW_ORG = function(k) mark_part(ctx, k) end
   callbacks.tri = function(_, ...) find_tri(ctx, ...) end
   callbacks.quad = function(_, ...) find_quad(ctx, ...) end
   return callbacks
 end
 
-local function make_context(x, y, z, dx, dy, dz)
+local function make_context(origin, dir)
   return {
-    ray = { origin = Vec.d3(x, y, z), dir = Vec.d3(dx, dy, dz) },
+    ray = { origin = origin, dir = dir },
     l = math.huge
   }
 end
 
-function find_part(model, x, y, z, dx, dy, dz)
-  local ctx = make_context(x, y, z, dx, dy, dz)
+function find_part(model, origin, dir)
+  local ctx = make_context(origin, dir)
   bfc_reset()
-  traverse_ldraw(model, find_callbacks(ctx), ROOT_COLOR)
+  traverse_ldraw(model, find_callbacks(ctx), Yellow)
   if ctx.hit then
     return ctx.hit, ctx.l
   end
 end
+
+
+ 
+

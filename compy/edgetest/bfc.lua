@@ -1,16 +1,13 @@
 -- BFC (back face culling) state and operations.
--- State separates per-file (reset at subfile entry),
--- per-action (consumed by next subfile call), and accumulated
--- (propagated through the subfile boundary).
+-- State separates per-file (reset at subfile entry) and
+-- accumulated (propagated through the subfile boundary). Spec:
+-- https://www.ldraw.org/article/415.html
+
 -- Per-file: reset on subfile entry.
 
 local certified = nil
 local winding = 1
 local local_cull = true
-
--- Per-action: consumed by the next subfile reference.
-
-local invert_next = false
 
 -- Accumulated: propagated through subfile boundary.
 
@@ -49,13 +46,14 @@ function BFC_NOCLIP()
   local_cull = false
 end
 
--- Wrap a Type 1 dispatch in BFC INVERTNEXT semantics: the
--- flag is consumed by bfc_enter on the resulting call.
+-- Wrap a Type 1 dispatch in BFC INVERTNEXT semantics: flip
+-- accum_invert for the duration of the wrapped call.
 
 function BFC_INVERT(f)
   return function(...)
-    invert_next = true
+    accum_invert = not accum_invert
     f(...)
+    accum_invert = not accum_invert
   end
 end
 
@@ -79,8 +77,8 @@ local function reset_local()
   local_cull = true
 end
 
--- Snapshot, fold invert_next into accum_invert, propagate
--- AccumCull per spec, reset file-local state for the sub.
+-- Snapshot accumulated and per-file state, propagate AccumCull
+-- per spec, reset file-local state for the sub.
 
 function bfc_enter()
   local saved = {
@@ -90,8 +88,6 @@ function bfc_enter()
     accum_cull = accum_cull,
     accum_invert = accum_invert
   }
-  accum_invert = accum_invert ~= invert_next
-  invert_next = false
   accum_cull = bfc_culling()
   reset_local()
   return saved
@@ -109,7 +105,6 @@ end
 
 function bfc_reset()
   reset_local()
-  invert_next = false
   accum_cull = true
   accum_invert = false
 end
@@ -140,3 +135,4 @@ function signed_volume3(p1x, p1y, p1z, p2x, p2y, p2z,
     - ay*(bx*cz - bz*cx)
     + az*(bx*cy - by*cx)
 end
+ 

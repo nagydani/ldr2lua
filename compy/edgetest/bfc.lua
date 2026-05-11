@@ -1,67 +1,77 @@
 -- BFC (back face culling) state and operations.
--- Per-file scope state and a single accumulated flag are
--- module-local; sub-tree entry snapshots them through Lua's
--- call stack, just like M and T in ldraw.lua.
+-- State separates per-file (reset at subfile entry),
+-- per-action (consumed by next subfile call), and accumulated
+-- (propagated through the subfile boundary).
+-- Per-file: reset on subfile entry.
 
--- Per-file state.
-
-local certified = nil   -- nil = unknown; true / false set
-local winding = 1       -- 1 = CCW, -1 = CW
+local certified = nil
+local winding = 1
 local local_cull = true
 
--- Accumulated through the subfile-reference branch.
+-- Per-action: consumed by the next subfile reference.
+
+local invert_next = false
+
+-- Accumulated: propagated through subfile boundary.
 
 local accum_cull = true
-local outer_sign = 1    -- which det sign means outward face
+local accum_invert = false
 
--- DSL meta-handlers. They mutate the file-local state.
+-- Meta-handlers. BFC CW/CCW fold accum_invert into winding at
+-- meta time, per the spec's CW/CCW pseudo-code.
+
+local function set_winding(w)
+  winding = accum_invert and -w or w
+end
 
 function BFC_CERTIFY(w)
-  certified = true
-  winding = w
+  if certified ~= false then certified = true end
+  set_winding(w)
 end
 
 function BFC_NOCERTIFY()
+  if certified == true then
+    error("BFC NOCERTIFY after CERTIFY")
+  end
   certified = false
 end
 
 function BFC(w)
-  winding = w
+  set_winding(w)
 end
 
 function BFC_CLIP(w)
   local_cull = true
-  if w then winding = w end
+  if w then set_winding(w) end
 end
 
 function BFC_NOCLIP()
   local_cull = false
 end
 
--- INVERTNEXT wraps a Type 1 dispatch. Flips outer_sign for the
--- duration of the wrapped call.
+-- Wrap a Type 1 dispatch in BFC INVERTNEXT semantics: the
+-- flag is consumed by bfc_enter on the resulting call.
 
 function BFC_INVERT(f)
   return function(...)
-    outer_sign = -outer_sign
+    invert_next = true
     f(...)
-    outer_sign = -outer_sign
   end
 end
 
--- Compute sign of a 3x3 matrix determinant. Linalg version
--- pending; replace this body when the new function lands.
+-- Signed 3x3 determinant of a Mat. Replace body with the
+-- linalg-backed version once it lands.
 
-local function signed_det3(m)
-  local m11, m21, m31 = m:e(1, 1), m:e(2, 1), m:e(3, 1)
-  local m12, m22, m32 = m:e(1, 2), m:e(2, 2), m:e(3, 2)
-  local m13, m23, m33 = m:e(1, 3), m:e(2, 3), m:e(3, 3)
-  return m11*(m22*m33 - m23*m32)
-    - m12*(m21*m33 - m23*m31)
-    + m13*(m21*m32 - m22*m31)
+function signed_det3(m)
+  local a, b, c = m:e(1, 1), m:e(2, 1), m:e(3, 1)
+  local d, e, f = m:e(1, 2), m:e(2, 2), m:e(3, 2)
+  local g, h, i = m:e(1, 3), m:e(2, 3), m:e(3, 3)
+  return a * (e * i - f * h)
+    - b * (d * i - f * g)
+    + c * (d * h - e * g)
 end
 
--- Reset file-local state to defaults at sub-tree entry.
+-- Reset file-local state for a fresh subfile context.
 
 local function reset_local()
   certified = nil
@@ -69,51 +79,57 @@ local function reset_local()
   local_cull = true
 end
 
--- Snapshot, accumulate cull and matrix-reversal sign, reset
--- file-local state for the sub-tree.
+-- Snapshot, fold invert_next into accum_invert, propagate
+-- AccumCull per spec, reset file-local state for the sub.
 
-function bfc_enter(m)
+function bfc_enter()
   local saved = {
     certified = certified,
     winding = winding,
     local_cull = local_cull,
     accum_cull = accum_cull,
-    outer_sign = outer_sign
+    accum_invert = accum_invert
   }
-  accum_cull = accum_cull and local_cull
-  if signed_det3(m) < 0 then
-    outer_sign = -outer_sign
-  end
+  accum_invert = accum_invert ~= invert_next
+  invert_next = false
+  accum_cull = bfc_culling()
   reset_local()
   return saved
 end
-
--- Restore the snapshot taken by the matching bfc_enter.
 
 function bfc_leave(saved)
   certified = saved.certified
   winding = saved.winding
   local_cull = saved.local_cull
   accum_cull = saved.accum_cull
-  outer_sign = saved.outer_sign
+  accum_invert = saved.accum_invert
 end
 
 -- Reset to root defaults at the start of a traversal pass.
 
 function bfc_reset()
   reset_local()
+  invert_next = false
   accum_cull = true
-  outer_sign = 1
+  accum_invert = false
 end
 
--- Return true if culling currently applies to triangle/quad.
+-- True iff a tri/quad in this file should be tested for
+-- back-face culling.
 
 function bfc_culling()
   return accum_cull and local_cull and certified == true
 end
 
--- Signed volume of (p2-p1, p3-p1, p4-p1); sign tells side of
--- the triangle the ray origin sits on (passed as p4).
+-- Current winding sign; the picking pass combines this with
+-- sv and sign(det(M)) to decide front/back.
+
+function bfc_winding()
+  return winding
+end
+
+-- Signed volume of (p2-p1, p3-p1, p4-p1). Sign tells which
+-- side of the triangle plane p4 sits on.
 
 function signed_volume3(p1x, p1y, p1z, p2x, p2y, p2z,
     p3x, p3y, p3z, p4x, p4y, p4z)
@@ -123,10 +139,4 @@ function signed_volume3(p1x, p1y, p1z, p2x, p2y, p2z,
   return ax*(by*cz - bz*cy)
     - ay*(bx*cz - bz*cx)
     + az*(bx*cy - by*cx)
-end
-
--- Effective winding sign: file winding times outer-face sign.
-
-function bfc_effective_winding()
-  return winding * outer_sign
 end

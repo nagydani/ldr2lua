@@ -94,8 +94,8 @@ end
 local function emit_array(name, values, pad)
   pad = pad or "  "
   table.insert(out, pad .. name .. " = {")
-  for _, v in ipairs(values) do
-    table.insert(out, pad .. "  " .. v .. ",")
+  for i = 1, #values do
+    table.insert(out, pad .. "  " .. values[i] .. ",")
   end
   table.insert(out, pad .. "},")
 end
@@ -137,9 +137,9 @@ end
 -- Emit simple finish markers such as CHROME or RUBBER.
 
 local function emit_finish(tokens)
-  for _, tok in ipairs(tokens) do
-    if FINISH[tok] then
-      emit_field("finish", quote(tok))
+  for i = 1, #tokens do
+    if FINISH[tokens[i]] then
+      emit_field("finish", quote(tokens[i]))
     end
   end
 end
@@ -219,3 +219,4 @@ function emit_colour(rest)
   emit_material(tokens)
   table.insert(out, "}")
 end
+

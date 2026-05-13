@@ -107,7 +107,9 @@ function emit_comment(rest)
   end
 end
 
--- Open a file or die with a clear message.
+-- Open a file or die with a clear message. Shared by read_file
+-- and write_file so that the "check for nil" pattern is not
+-- repeated.
 
 local function open_or_die(path, mode)
   local f = io.open(path, mode)
@@ -129,6 +131,10 @@ function write_lines(path, lines, mode)
   f:write(table.concat(lines, "\n"))
   f:write("\n")
   f:close()
+end
+
+function write_file(path)
+  write_lines(path, out, "w")
 end
 
 function write_binary(path, data)

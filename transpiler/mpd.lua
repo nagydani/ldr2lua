@@ -52,7 +52,10 @@ end
 local function new_mpd(out_path)
   return {
     out_path = out_path,
-    root = { }
+    root = { },
+    kind = nil,
+    name = nil,
+    lines = nil
   }
 end
 

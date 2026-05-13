@@ -59,27 +59,6 @@ local function emit_keywords(rest)
   end
 end
 
--- A factory that returns a handler emitting BFC_X(arg) call.
-
-local function make_bfc_const(name, arg)
-  return function() emit_call(name, { tostring(arg) }) end
-end
-
--- A factory that returns a handler emitting BFC_X() call.
-
-local function make_bfc_void(name)
-  return function() emit_call(name, { }) end
-end
-
--- INVERTNEXT sets a transpiler flag; the next Type 1 wraps the
--- emit name with BFC_INVERT(...).
-
-local INVERT_NEXT = false
-
-local function handle_invertnext()
-  INVERT_NEXT = true
-end
-
 -- Type 0 patterns as two parallel tables. Adding another meta
 -- pattern is one line in each table.
 
@@ -94,20 +73,7 @@ local META_PATTERN = {
   "^!LDRAW_ORG%s+(.*)$",
   "^!PREVIEW%s+(.*)$",
   "^!KEYWORDS%s+(.*)$",
-  "^!COLOUR%s+(.*)$",
-  "^BFC%s+CERTIFY%s+CW%s*$",
-  "^BFC%s+CERTIFY%s+CCW%s*$",
-  "^BFC%s+CERTIFY%s*$",
-  "^BFC%s+NOCERTIFY%s*$",
-  "^BFC%s+CW%s+CLIP%s*$",
-  "^BFC%s+CCW%s+CLIP%s*$",
-  "^BFC%s+CLIP%s+CW%s*$",
-  "^BFC%s+CLIP%s+CCW%s*$",
-  "^BFC%s+CLIP%s*$",
-  "^BFC%s+NOCLIP%s*$",
-  "^BFC%s+INVERTNEXT%s*$",
-  "^BFC%s+CW%s*$",
-  "^BFC%s+CCW%s*$"
+  "^!COLOUR%s+(.*)$"
 }
 
 local META_HANDLER = {
@@ -121,20 +87,7 @@ local META_HANDLER = {
   emit_ldraw_org,
   emit_preview,
   emit_keywords,
-  emit_colour,
-  make_bfc_const("BFC_CERTIFY", -1),
-  make_bfc_const("BFC_CERTIFY", 1),
-  make_bfc_const("BFC_CERTIFY", 1),
-  make_bfc_void("BFC_NOCERTIFY"),
-  make_bfc_const("BFC_CLIP", -1),
-  make_bfc_const("BFC_CLIP", 1),
-  make_bfc_const("BFC_CLIP", -1),
-  make_bfc_const("BFC_CLIP", 1),
-  make_bfc_void("BFC_CLIP"),
-  make_bfc_void("BFC_NOCLIP"),
-  handle_invertnext,
-  make_bfc_const("BFC", -1),
-  make_bfc_const("BFC", 1)
+  emit_colour
 }
 
 -- Dispatch a Type 0 line: match its text against each pattern
@@ -142,8 +95,8 @@ local META_HANDLER = {
 -- match no pattern fall through to the comment emitter.
 
 local function handle_type0(rest)
-  for i, pat in ipairs(META_PATTERN) do
-    local cap = rest:match(pat)
+  for i = 1, #META_PATTERN do
+    local cap = rest:match(META_PATTERN[i])
     if cap then
       META_HANDLER[i](cap)
       return
@@ -184,8 +137,8 @@ end
 
 local function match_orthogonal(m)
   local cm = ldraw_to_linalg(m)
-  for i, base in ipairs(orthogonal_base) do
-    if matches_matrix(cm, base) then
+  for i = 1, #orthogonal_base do
+    if matches_matrix(cm, orthogonal_base[i]) then
       return i
     end
   end
@@ -273,17 +226,6 @@ local function build_type1_head(fname, q, x, y, z)
   return head
 end
 
--- Emit a Type 1 dispatch call, wrapping in BFC_INVERT if a
--- BFC INVERTNEXT meta preceded this Type 1 line.
-
-local function emit_type1_call(name, args)
-  if INVERT_NEXT then
-    INVERT_NEXT = false
-    name = "BFC_INVERT(" .. name .. ")"
-  end
-  emit_call(name, args)
-end
-
 -- Try to dispatch the matrix to a named or generic orthogonal
 -- DSL function. Returns true on success, false if the matrix
 -- is not one of the 47 orthogonal bases.
@@ -295,10 +237,10 @@ local function emit_orthogonal(m, args)
   end
   local named = NAMED_INDEX[i]
   if named then
-    emit_type1_call(named, args)
+    emit_call(named, args)
   else
     insert_nums(args, i)
-    emit_type1_call("place", args)
+    emit_call("place", args)
   end
   return true
 end
@@ -307,7 +249,7 @@ end
 
 local function emit_stretch(m, args)
   insert_nums(args, m[1], m[5], m[9])
-  emit_type1_call("stretch", args)
+  emit_call("stretch", args)
 end
 
 -- Emit a twist call if the matrix has the twist shape, or a
@@ -316,10 +258,10 @@ end
 local function emit_twist_or_ref(m, args)
   if is_twist(m) then
     insert_nums(args, m[1], m[3])
-    emit_type1_call("twist", args)
+    emit_call("twist", args)
   else
     insert_all(args, m, 1, 9)
-    emit_type1_call("ref", args)
+    emit_call("ref", args)
   end
 end
 
@@ -328,7 +270,7 @@ end
 
 local function try_named_dispatch(m, args)
   if is_identity(m) then
-    emit_type1_call("placeN", args)
+    emit_call("placeN", args)
     return true
   elseif emit_orthogonal(m, args) then
     return true

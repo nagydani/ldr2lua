@@ -63,9 +63,8 @@ end
 local function hex_start(hex)
   if hex:sub(1, 1) == "#" then
     return 2
-  else
-    return 3
   end
+  return 3
 end
 
 -- Convert one hex byte to a 0..1 channel.
@@ -94,8 +93,8 @@ end
 local function emit_array(name, values, pad)
   pad = pad or "  "
   table.insert(out, pad .. name .. " = {")
-  for i = 1, #values do
-    table.insert(out, pad .. "  " .. values[i] .. ",")
+  for _, v in ipairs(values) do
+    table.insert(out, pad .. "  " .. v .. ",")
   end
   table.insert(out, pad .. "},")
 end
@@ -137,9 +136,9 @@ end
 -- Emit simple finish markers such as CHROME or RUBBER.
 
 local function emit_finish(tokens)
-  for i = 1, #tokens do
-    if FINISH[tokens[i]] then
-      emit_field("finish", quote(tokens[i]))
+  for _, tok in ipairs(tokens) do
+    if FINISH[tok] then
+      emit_field("finish", quote(tok))
     end
   end
 end
@@ -219,4 +218,3 @@ function emit_colour(rest)
   emit_material(tokens)
   table.insert(out, "}")
 end
-

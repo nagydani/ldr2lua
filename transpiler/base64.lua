@@ -20,9 +20,8 @@ local function b64_value(text, i)
   local c = text:sub(i, i)
   if c == "=" then
     return 0
-  else
-    return B64[c]
   end
+  return B64[c]
 end
 
 -- Pack one 4-character group into a 24-bit integer.
